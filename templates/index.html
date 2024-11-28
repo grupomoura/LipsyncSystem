@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LipSync Pro</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <style>
+        .drop-zone {
+            border: 2px dashed #cbd5e0;
+            transition: all 0.3s ease;
+        }
+        .drop-zone:hover {
+            border-color: #4299e1;
+            background-color: #ebf8ff;
+        }
+        .processing {
+            animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+        @keyframes pulse {
+            0%, 100% {
+                opacity: 1;
+            }
+            50% {
+                opacity: .5;
+            }
+        }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen">
+    <div class="container mx-auto px-4 py-8">
+        <header class="text-center mb-12">
+            <h1 class="text-4xl font-bold text-gray-800 mb-2">LipSync Pro</h1>
+            <p class="text-gray-600">Sincronização labial precisa para vídeos e imagens</p>
+        </header>
+
+        <div class="max-w-3xl mx-auto bg-white rounded-lg shadow-lg p-8">
+            <form id="uploadForm" class="space-y-6">
+                <div class="space-y-4">
+                    <div class="drop-zone p-8 rounded-lg text-center" id="mediaDropZone">
+                        <div class="space-y-2">
+                            <label class="block text-gray-700 font-medium mb-2">Vídeo ou Imagem</label>
+                            <input type="file" id="mediaInput" name="media" accept=".mp4,.png,.jpg,.jpeg" class="hidden">
+                            <div class="flex items-center justify-center">
+                                <button type="button" onclick="document.getElementById('mediaInput').click()" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 transition">
+                                    Escolher arquivo
+                                </button>
+                            </div>
+                            <p class="text-sm text-gray-500">ou arraste e solte aqui</p>
+                            <p id="mediaFileName" class="text-sm text-gray-600 mt-2"></p>
+                        </div>
+                    </div>
+
+                    <div class="drop-zone p-8 rounded-lg text-center" id="audioDropZone">
+                        <div class="space-y-2">
+                            <label class="block text-gray-700 font-medium mb-2">Áudio</label>
+                            <input type="file" id="audioInput" name="audio" accept=".mp3,.wav" class="hidden">
+                            <div class="flex items-center justify-center">
+                                <button type="button" onclick="document.getElementById('audioInput').click()" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 transition">
+                                    Escolher arquivo
+                                </button>
+                            </div>
+                            <p class="text-sm text-gray-500">ou arraste e solte aqui</p>
+                            <p id="audioFileName" class="text-sm text-gray-600 mt-2"></p>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="faceSelection" class="hidden space-y-4">
+                    <h3 class="text-lg font-medium text-gray-700">Selecione o rosto para sincronização:</h3>
+                    <div id="facesContainer" class="grid grid-cols-2 md:grid-cols-3 gap-4">
+                        <!-- Faces will be inserted here -->
+                    </div>
+                </div>
+
+                <div class="flex justify-center">
+                    <button type="submit" class="bg-green-500 text-white px-6 py-3 rounded-lg hover:bg-green-600 transition transform hover:scale-105">
+                        Iniciar Sincronização
+                    </button>
+                </div>
+            </form>
+
+            <div id="progress" class="hidden mt-8">
+                <div class="w-full bg-gray-200 rounded-full h-2.5">
+                    <div class="bg-blue-600 h-2.5 rounded-full processing" style="width: 100%"></div>
+                </div>
+                <p class="text-center text-gray-600 mt-2">Processando...</p>
+            </div>
+
+            <div id="result" class="hidden mt-8 space-y-4">
+                <h3 class="text-lg font-medium text-gray-700">Resultado:</h3>
+                <video id="resultVideo" controls class="w-full rounded-lg shadow">
+                    <source src="" type="video/mp4">
+                    Seu navegador não suporta o elemento de vídeo.
+                </video>
+                <div class="flex justify-center">
+                    <a id="downloadLink" href="#" download class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 transition">
+                        Download
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const uploadForm = document.getElementById('uploadForm');
+        const progress = document.getElementById('progress');
+        const result = document.getElementById('result');
+        const faceSelection = document.getElementById('faceSelection');
+        const facesContainer = document.getElementById('facesContainer');
+
+        function updateFileName(input, displayElement) {
+            const fileName = input.files[0]?.name || '';
+            displayElement.textContent = fileName ? `Arquivo selecionado: ${fileName}` : '';
+        }
+
+        document.getElementById('mediaInput').addEventListener('change', function() {
+            updateFileName(this, document.getElementById('mediaFileName'));
+        });
+
+        document.getElementById('audioInput').addEventListener('change', function() {
+            updateFileName(this, document.getElementById('audioFileName'));
+        });
+
+        function setupDropZone(dropZone, input) {
+            ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+                dropZone.addEventListener(eventName, preventDefaults, false);
+            });
+
+            function preventDefaults(e) {
+                e.preventDefault();
+                e.stopPropagation();
+            }
+
+            ['dragenter', 'dragover'].forEach(eventName => {
+                dropZone.addEventListener(eventName, () => {
+                    dropZone.classList.add('border-blue-500', 'bg-blue-50');
+                });
+            });
+
+            ['dragleave', 'drop'].forEach(eventName => {
+                dropZone.addEventListener(eventName, () => {
+                    dropZone.classList.remove('border-blue-500', 'bg-blue-50');
+                });
+            });
+
+            dropZone.addEventListener('drop', (e) => {
+                const dt = e.dataTransfer;
+                input.files = dt.files;
+                updateFileName(input, dropZone.querySelector('p:last-child'));
+            });
+        }
+
+        setupDropZone(document.getElementById('mediaDropZone'), document.getElementById('mediaInput'));
+        setupDropZone(document.getElementById('audioDropZone'), document.getElementById('audioInput'));
+
+        uploadForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const formData = new FormData();
+            const mediaFile = document.getElementById('mediaInput').files[0];
+            const audioFile = document.getElementById('audioInput').files[0];
+
+            if (!mediaFile || !audioFile) {
+                alert('Por favor, selecione tanto o arquivo de mídia quanto o arquivo de áudio.');
+                return;
+            }
+
+            formData.append(mediaFile.name.endsWith('.mp4') ? 'video' : 'image', mediaFile);
+            formData.append('audio', audioFile);
+
+            progress.classList.remove('hidden');
+            result.classList.add('hidden');
+
+            try {
+                const response = await fetch('/upload', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const data = await response.json();
+
+                if (data.error) {
+                    alert(data.error);
+                    return;
+                }
+
+                if (data.multiple_faces) {
+                    showFaceSelection(data.faces, data.media_path, data.audio_path);
+                } else {
+                    await processLipSync(data.media_path, data.audio_path, 0);
+                }
+            } catch (error) {
+                alert('Erro ao processar o arquivo: ' + error.message);
+            } finally {
+                progress.classList.add('hidden');
+            }
+        });
+
+        function showFaceSelection(faces, mediaPath, audioPath) {
+            facesContainer.innerHTML = '';
+            faces.forEach(face => {
+                const faceElement = document.createElement('div');
+                faceElement.className = 'border rounded p-4 text-center cursor-pointer hover:bg-gray-50';
+                faceElement.innerHTML = `
+                    <img src="/face/${face.id}" alt="Face ${face.id + 1}" class="w-full h-auto mb-2">
+                    <button class="bg-blue-500 text-white px-3 py-1 rounded">
+                        Selecionar Rosto ${face.id + 1}
+                    </button>
+                `;
+                faceElement.onclick = () => processLipSync(mediaPath, audioPath, face.id);
+                facesContainer.appendChild(faceElement);
+            });
+            faceSelection.classList.remove('hidden');
+        }
+
+        async function processLipSync(mediaPath, audioPath, faceId) {
+            progress.classList.remove('hidden');
+            faceSelection.classList.add('hidden');
+
+            try {
+                const response = await fetch('/process', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        media_path: mediaPath,
+                        audio_path: audioPath,
+                        face_id: faceId
+                    })
+                });
+
+                const data = await response.json();
+
+                if (data.error) {
+                    alert(data.error);
+                    return;
+                }
+
+                document.getElementById('resultVideo').src = data.result_path;
+                document.getElementById('downloadLink').href = data.result_path;
+                result.classList.remove('hidden');
+            } catch (error) {
+                alert('Erro ao processar o lipsync: ' + error.message);
+            } finally {
+                progress.classList.add('hidden');
+            }
+        }
+    </script>
+</body>
+</html>
